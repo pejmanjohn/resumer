@@ -402,6 +402,24 @@ func TestMainInvalidCommandWithHelpReturnsUsage(t *testing.T) {
 	}
 }
 
+func TestMainInvalidLimitWithHelpReturnsUsage(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	got := Main([]string{"--limit", "0", "--help"}, &stdout, &stderr)
+
+	if got != ExitUsage {
+		t.Fatalf("Main(--limit 0 --help) = %d, want %d", got, ExitUsage)
+	}
+	if stdout.String() != "" {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "resumer:") ||
+		!strings.Contains(stderr.String(), "--limit must be greater than zero") {
+		t.Fatalf("stderr = %q, want limit usage error", stderr.String())
+	}
+}
+
 func testApp(t *testing.T) App {
 	t.Helper()
 	return App{

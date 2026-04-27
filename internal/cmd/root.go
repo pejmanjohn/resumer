@@ -334,6 +334,10 @@ func writeHelp(args []string, w io.Writer) (err error) {
 		panic(recovered)
 	}()
 
+	if err := validateHelpArgs(args); err != nil {
+		return err
+	}
+
 	root := Root{}
 	parser, err := kong.New(&root, kong.Name("resumer"), kong.Writers(w, io.Discard), kong.Exit(func(code int) {
 		panic(helpExit(code))
@@ -354,6 +358,34 @@ func writeHelp(args []string, w io.Writer) (err error) {
 		return UsageError{Message: err.Error()}
 	}
 	return nil
+}
+
+func validateHelpArgs(args []string) error {
+	root := Root{}
+	parser, err := kong.New(&root, kong.Name("resumer"), kong.Exit(func(int) {}))
+	if err != nil {
+		return err
+	}
+
+	_, err = parser.Parse(argsWithoutHelp(args))
+	if err != nil {
+		return UsageError{Message: err.Error()}
+	}
+	if root.Limit < 1 {
+		return UsageError{Message: "--limit must be greater than zero"}
+	}
+	return nil
+}
+
+func argsWithoutHelp(args []string) []string {
+	filtered := make([]string, 0, len(args))
+	for _, arg := range args {
+		if arg == "--help" || arg == "-h" {
+			continue
+		}
+		filtered = append(filtered, arg)
+	}
+	return filtered
 }
 
 func isTopLevelHelp(args []string) bool {
