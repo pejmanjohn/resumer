@@ -73,3 +73,23 @@ func TestParseRejectsInvalidLimit(t *testing.T) {
 		t.Fatal("ParseForTest returned nil error for invalid limit")
 	}
 }
+
+func TestParseInvalidFlagReturnsUsageError(t *testing.T) {
+	_, err := ParseForTest([]string{"--definitely-invalid"})
+	if err == nil {
+		t.Fatal("ParseForTest returned nil error for invalid flag")
+	}
+	if got := ExitCode(err); got != ExitUsage {
+		t.Fatalf("ExitCode(ParseForTest error) = %d, want %d", got, ExitUsage)
+	}
+}
+
+func TestParseBareListReturnsUsageError(t *testing.T) {
+	_, err := ParseForTest([]string{"list"})
+	if err == nil {
+		t.Fatal("ParseForTest returned nil error for bare list")
+	}
+	if got := ExitCode(err); got != ExitUsage {
+		t.Fatalf("ExitCode(ParseForTest error) = %d, want %d", got, ExitUsage)
+	}
+}

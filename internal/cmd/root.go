@@ -57,7 +57,7 @@ func ParseForTest(args []string) (Options, error) {
 
 	ctx, err := parser.Parse(args)
 	if err != nil {
-		return Options{}, err
+		return Options{}, UsageError{Message: err.Error()}
 	}
 	if root.Limit < 1 {
 		return Options{}, UsageError{Message: "--limit must be greater than zero"}
@@ -80,9 +80,10 @@ func ParseForTest(args []string) (Options, error) {
 	case "codex":
 		opts.Harness = HarnessCodex
 	case "list":
-		if root.List.JSON {
-			opts.Mode = ModeListJSON
+		if !root.List.JSON {
+			return Options{}, UsageError{Message: "list requires --json"}
 		}
+		opts.Mode = ModeListJSON
 	}
 
 	return opts, nil
