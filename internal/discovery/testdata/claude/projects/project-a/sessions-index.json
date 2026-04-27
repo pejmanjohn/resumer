@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "originalPath": "/repo/project-a",
+  "entries": [
+    {
+      "sessionId": "claude-session-1",
+      "summary": "Resumer CLI design",
+      "firstPrompt": "Plan the resume picker",
+      "messageCount": 12,
+      "created": "2026-04-26T10:00:00Z",
+      "modified": "2026-04-26T12:00:00Z",
+      "gitBranch": "main",
+      "projectPath": "/repo/project-a",
+      "fullPath": "/home/ada/.claude/projects/project-a/claude-session-1.jsonl",
+      "isSidechain": false
+    },
+    {
+      "sessionId": "claude-sidechain-1",
+      "summary": "Internal sidechain",
+      "firstPrompt": "Hidden helper",
+      "created": "2026-04-26T09:00:00Z",
+      "modified": "2026-04-26T09:30:00Z",
+      "projectPath": "/repo/project-a",
+      "fullPath": "/home/ada/.claude/projects/project-a/sidechain.jsonl",
+      "isSidechain": true
+    }
+  ]
+}
