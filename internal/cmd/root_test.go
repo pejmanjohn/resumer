@@ -1,6 +1,10 @@
 package cmd
 
-import "testing"
+import (
+	"bytes"
+	"strings"
+	"testing"
+)
 
 func TestParseNoArgsDefaultsToInteractiveAllHarnesses(t *testing.T) {
 	opts, err := ParseForTest([]string{})
@@ -91,5 +95,33 @@ func TestParseBareListReturnsUsageError(t *testing.T) {
 	}
 	if got := ExitCode(err); got != ExitUsage {
 		t.Fatalf("ExitCode(ParseForTest error) = %d, want %d", got, ExitUsage)
+	}
+}
+
+func TestMainInvalidFlagReturnsUsageAndWritesHumanError(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	got := Main([]string{"--definitely-invalid"}, &stdout, &stderr)
+
+	if got != ExitUsage {
+		t.Fatalf("Main() = %d, want %d", got, ExitUsage)
+	}
+	if stdout.String() != "" {
+		t.Fatalf("stdout = %q, want empty string", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "resumer:") {
+		t.Fatalf("stderr = %q, want human error", stderr.String())
+	}
+}
+
+func TestMainBareListReturnsUsage(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	got := Main([]string{"list"}, &stdout, &stderr)
+
+	if got != ExitUsage {
+		t.Fatalf("Main() = %d, want %d", got, ExitUsage)
 	}
 }

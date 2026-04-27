@@ -1,6 +1,13 @@
 package cmd
 
-import "github.com/alecthomas/kong"
+import (
+	"fmt"
+	"io"
+
+	"github.com/alecthomas/kong"
+
+	"resumer/internal/errfmt"
+)
 
 type Mode string
 
@@ -48,7 +55,7 @@ type ListCmd struct {
 	JSON bool `name:"json" help:"Emit stable JSON output."`
 }
 
-func ParseForTest(args []string) (Options, error) {
+func ParseOptions(args []string) (Options, error) {
 	root := Root{}
 	parser, err := kong.New(&root, kong.Name("resumer"), kong.Exit(func(int) {}))
 	if err != nil {
@@ -87,4 +94,17 @@ func ParseForTest(args []string) (Options, error) {
 	}
 
 	return opts, nil
+}
+
+func ParseForTest(args []string) (Options, error) {
+	return ParseOptions(args)
+}
+
+func Main(args []string, stdout io.Writer, stderr io.Writer) int {
+	_, err := ParseOptions(args)
+	if err != nil {
+		fmt.Fprintln(stderr, errfmt.Human(err))
+		return ExitCode(err)
+	}
+	return ExitOK
 }
