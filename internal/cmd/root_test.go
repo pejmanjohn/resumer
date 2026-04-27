@@ -373,6 +373,35 @@ func TestMainClaudeHelpReturnsOKAndWritesClaudeHelp(t *testing.T) {
 	}
 }
 
+func TestMainInvalidFlagWithHelpReturnsUsage(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	got := Main([]string{"--definitely-invalid", "--help"}, &stdout, &stderr)
+
+	if got != ExitUsage {
+		t.Fatalf("Main(invalid flag --help) = %d, want %d", got, ExitUsage)
+	}
+	if !strings.Contains(stderr.String(), "resumer:") {
+		t.Fatalf("stderr = %q, want human error", stderr.String())
+	}
+	_ = stdout.String()
+}
+
+func TestMainInvalidCommandWithHelpReturnsUsage(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	got := Main([]string{"nope", "--help"}, &stdout, &stderr)
+
+	if got != ExitUsage {
+		t.Fatalf("Main(nope --help) = %d, want %d", got, ExitUsage)
+	}
+	if !strings.Contains(stderr.String(), "resumer:") {
+		t.Fatalf("stderr = %q, want human error", stderr.String())
+	}
+}
+
 func testApp(t *testing.T) App {
 	t.Helper()
 	return App{

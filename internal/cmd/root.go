@@ -350,7 +350,10 @@ func writeHelp(args []string, w io.Writer) (err error) {
 		fmt.Fprintln(w)
 	}
 	_, err = parser.Parse(args)
-	return err
+	if err != nil {
+		return UsageError{Message: err.Error()}
+	}
+	return nil
 }
 
 func isTopLevelHelp(args []string) bool {
