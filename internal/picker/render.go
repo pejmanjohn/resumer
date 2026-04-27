@@ -19,30 +19,37 @@ var (
 func (m Model) View() string {
 	width := m.Width
 	if width <= 0 {
-		width = 80
+		width = 120
+	}
+	height := m.Height
+	if height <= 0 {
+		height = 24
 	}
 
-	var b strings.Builder
-	b.WriteString(titleStyle.Render("Resume a session"))
-	b.WriteString("\n\n")
+	lines := []string{titleStyle.Render(truncate("Resume a session", width))}
 
 	if len(m.Sessions) == 0 {
-		b.WriteString("No sessions found\n\n")
-		b.WriteString(mutedStyle.Render("q quit"))
-		return b.String()
+		lines = append(lines, truncate("No sessions found", width))
+		lines = append(lines, mutedStyle.Render(truncate("q quit", width)))
+		return joinBounded(lines, height)
 	}
 
-	for i, card := range m.Sessions {
-		b.WriteString(renderRow(card, i == m.Cursor, width))
-		b.WriteByte('\n')
-		if i == m.Cursor && m.ShowDetails {
-			b.WriteString(renderDetails(card, width))
+	cursor := clampCursor(m.Cursor, len(m.Sessions))
+	details := []string(nil)
+	if m.ShowDetails {
+		details = renderDetails(m.Sessions[cursor], width)
+	}
+	start, end := visibleRange(cursor, len(m.Sessions), listBudget(height, len(details)))
+
+	for i := start; i < end; i++ {
+		lines = append(lines, renderRow(m.Sessions[i], i == cursor, width))
+		if i == cursor {
+			lines = append(lines, details...)
 		}
 	}
 
-	b.WriteString("\n")
-	b.WriteString(mutedStyle.Render("enter resume  d details  c copy command  q quit"))
-	return b.String()
+	lines = append(lines, mutedStyle.Render(truncate("enter resume  d details  c copy command  q quit", width)))
+	return joinBounded(lines, height)
 }
 
 func renderRow(card session.SessionCard, selected bool, width int) string {
@@ -67,7 +74,7 @@ func renderRow(card session.SessionCard, selected bool, width int) string {
 	return line
 }
 
-func renderDetails(card session.SessionCard, width int) string {
+func renderDetails(card session.SessionCard, width int) []string {
 	lines := []string{
 		"    Prompt: " + emptyDash(card.FirstPrompt),
 		"    ID: " + emptyDash(card.ID),
@@ -78,7 +85,49 @@ func renderDetails(card session.SessionCard, width int) string {
 	for i, line := range lines {
 		lines[i] = truncate(line, width)
 	}
-	return strings.Join(lines, "\n") + "\n"
+	return lines
+}
+
+func listBudget(height int, detailLines int) int {
+	budget := height - 2 - detailLines
+	if budget < 1 {
+		return 1
+	}
+	return budget
+}
+
+func visibleRange(cursor int, total int, budget int) (int, int) {
+	if total <= 0 {
+		return 0, 0
+	}
+	if budget >= total {
+		return 0, total
+	}
+	start := cursor - budget/2
+	if start < 0 {
+		start = 0
+	}
+	if start+budget > total {
+		start = total - budget
+	}
+	return start, start + budget
+}
+
+func clampCursor(cursor int, total int) int {
+	if cursor < 0 {
+		return 0
+	}
+	if cursor >= total {
+		return total - 1
+	}
+	return cursor
+}
+
+func joinBounded(lines []string, height int) string {
+	if height > 0 && len(lines) > height {
+		lines = lines[:height]
+	}
+	return strings.Join(lines, "\n")
 }
 
 func titleCaseHarness(h session.Harness) string {
@@ -122,12 +171,26 @@ func truncate(s string, width int) string {
 	if width <= 0 {
 		return s
 	}
-	runes := []rune(s)
-	if len(runes) <= width {
+	if lipgloss.Width(s) <= width {
 		return s
 	}
 	if width <= 3 {
-		return string(runes[:width])
+		return truncateCells(s, width)
 	}
-	return string(runes[:width-3]) + "..."
+	return truncateCells(s, width-3) + "..."
+}
+
+func truncateCells(s string, width int) string {
+	var b strings.Builder
+	used := 0
+	for _, r := range s {
+		next := string(r)
+		nextWidth := lipgloss.Width(next)
+		if used+nextWidth > width {
+			break
+		}
+		b.WriteString(next)
+		used += nextWidth
+	}
+	return b.String()
 }

@@ -1,11 +1,13 @@
 package picker
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"resumer/internal/session"
 )
@@ -93,6 +95,71 @@ func TestWindowSizeMsgUpdatesDimensions(t *testing.T) {
 	}
 }
 
+func TestViewBoundsRowsAndKeepsSelectedSessionVisible(t *testing.T) {
+	m := New(manyTestSessions(30))
+	m.Width = 120
+	m.Height = 8
+	m.Cursor = 20
+
+	view := m.View()
+
+	if lineCount(view) > m.Height {
+		t.Fatalf("line count = %d, want <= %d:\n%s", lineCount(view), m.Height, view)
+	}
+	for _, want := range []string{"Resume a session", "Project 20", "enter resume"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("View() missing %q:\n%s", want, view)
+		}
+	}
+	for _, notWant := range []string{"Project 00", "Project 29"} {
+		if strings.Contains(view, notWant) {
+			t.Fatalf("View() contains out-of-window session %q:\n%s", notWant, view)
+		}
+	}
+}
+
+func TestDetailsViewBoundsRowsAndKeepsCurrentContextVisible(t *testing.T) {
+	m := New(manyTestSessions(30))
+	m.Width = 120
+	m.Height = 8
+	m.Cursor = 20
+	m.ShowDetails = true
+
+	view := m.View()
+
+	if lineCount(view) > m.Height {
+		t.Fatalf("line count = %d, want <= %d:\n%s", lineCount(view), m.Height, view)
+	}
+	for _, want := range []string{"Project 20", "ID: session-20", "Resume command:", "enter resume"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("View() missing %q:\n%s", want, view)
+		}
+	}
+}
+
+func TestViewTruncatesWideUnicodeToTerminalWidth(t *testing.T) {
+	m := New([]session.SessionCard{
+		{
+			Harness:     session.HarnessCodex,
+			ID:          "wide-1",
+			Title:       strings.Repeat("界", 40),
+			ProjectPath: "/repo/" + strings.Repeat("界", 20),
+			FirstPrompt: strings.Repeat("🚀", 20),
+			UpdatedAt:   time.Date(2026, 4, 26, 10, 30, 0, 0, time.UTC),
+			SourcePath:  "/tmp/wide.jsonl",
+		},
+	})
+	m.Width = 50
+
+	view := m.View()
+
+	for _, line := range strings.Split(view, "\n") {
+		if got := lipgloss.Width(line); got > m.Width {
+			t.Fatalf("line width = %d, want <= %d for %q\nfull view:\n%s", got, m.Width, line, view)
+		}
+	}
+}
+
 func TestEmptySessionsViewAndActions(t *testing.T) {
 	m := New(nil)
 
@@ -115,6 +182,13 @@ func TestEmptySessionsViewAndActions(t *testing.T) {
 	if m.Action != ActionCancel {
 		t.Fatalf("Action = %v, want ActionCancel", m.Action)
 	}
+}
+
+func lineCount(s string) int {
+	if s == "" {
+		return 0
+	}
+	return len(strings.Split(s, "\n"))
 }
 
 func testSessions() []session.SessionCard {
@@ -140,4 +214,20 @@ func testSessions() []session.SessionCard {
 			SourcePath:  "/tmp/claude.jsonl",
 		},
 	}
+}
+
+func manyTestSessions(count int) []session.SessionCard {
+	sessions := make([]session.SessionCard, 0, count)
+	for i := range count {
+		sessions = append(sessions, session.SessionCard{
+			Harness:     session.HarnessCodex,
+			ID:          fmt.Sprintf("session-%02d", i),
+			Title:       fmt.Sprintf("Project %02d", i),
+			ProjectPath: fmt.Sprintf("/repo/project-%02d", i),
+			UpdatedAt:   time.Date(2026, 4, 26, 10, i, 0, 0, time.UTC),
+			FirstPrompt: fmt.Sprintf("Prompt %02d", i),
+			SourcePath:  fmt.Sprintf("/tmp/session-%02d.jsonl", i),
+		})
+	}
+	return sessions
 }
