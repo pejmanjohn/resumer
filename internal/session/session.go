@@ -13,17 +13,17 @@ const (
 )
 
 type SessionCard struct {
-	Harness     Harness
-	ID          string
-	Title       string
-	ProjectPath string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	FirstPrompt string
-	Model       string
-	SourcePath  string
-	Sidechain   bool
-	Internal    bool
+	Harness     Harness   `json:"harness"`
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	ProjectPath string    `json:"project_path"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	FirstPrompt string    `json:"first_prompt"`
+	Model       string    `json:"model"`
+	SourcePath  string    `json:"source_path"`
+	Sidechain   bool      `json:"-"`
+	Internal    bool      `json:"-"`
 }
 
 type ResumeCommand struct {
@@ -71,6 +71,10 @@ func (c SessionCard) SortTime() time.Time {
 }
 
 func (c ResumeCommand) Display() string {
+	if len(c.Argv) == 0 {
+		return ""
+	}
+
 	parts := make([]string, 0, len(c.Argv)+3)
 	if c.Dir != "" {
 		parts = append(parts, "cd", shellQuote(c.Dir), "&&")

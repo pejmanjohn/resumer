@@ -1,7 +1,9 @@
 package session
 
 import (
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -117,5 +119,39 @@ func TestResumeCommandDisplayQuotesPathsWithSpaces(t *testing.T) {
 	want := "cd '/repo/app with spaces' && claude --resume 'id with spaces'"
 	if got := cmd.Display(); got != want {
 		t.Fatalf("Display() = %q, want %q", got, want)
+	}
+}
+
+func TestSessionCardJSONUsesStablePublicFieldsOnly(t *testing.T) {
+	card := SessionCard{
+		Harness:   HarnessClaude,
+		ID:        "id",
+		Sidechain: true,
+		Internal:  true,
+	}
+
+	data, err := json.Marshal(card)
+	if err != nil {
+		t.Fatalf("json.Marshal() returned error: %v", err)
+	}
+	got := string(data)
+
+	for _, want := range []string{`"harness":"claude"`, `"id":"id"`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("JSON = %s, want to contain %s", got, want)
+		}
+	}
+	for _, forbidden := range []string{"Sidechain", "sidechain", "Internal", "internal"} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("JSON = %s, want to omit %s", got, forbidden)
+		}
+	}
+}
+
+func TestResumeCommandDisplayReturnsEmptyWhenArgvEmpty(t *testing.T) {
+	cmd := ResumeCommand{Dir: "/repo/app"}
+
+	if got := cmd.Display(); got != "" {
+		t.Fatalf("Display() = %q, want empty string", got)
 	}
 }
