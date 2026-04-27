@@ -160,6 +160,39 @@ func TestViewTruncatesWideUnicodeToTerminalWidth(t *testing.T) {
 	}
 }
 
+func TestViewNormalizesMultilineFieldsBeforeBounding(t *testing.T) {
+	m := New([]session.SessionCard{
+		{
+			Harness:     session.HarnessCodex,
+			ID:          "multiline-1",
+			Title:       "Project\nwith\nnewlines",
+			ProjectPath: "/repo/project\nwith\nnewlines",
+			FirstPrompt: "first prompt\nsecond prompt\tthird prompt",
+			UpdatedAt:   time.Date(2026, 4, 26, 10, 30, 0, 0, time.UTC),
+			SourcePath:  "/tmp/source\nwith\nnewlines.jsonl",
+		},
+	})
+	m.Width = 120
+	m.Height = 8
+	m.ShowDetails = true
+
+	view := m.View()
+
+	if lineCount(view) > m.Height {
+		t.Fatalf("line count = %d, want <= %d:\n%s", lineCount(view), m.Height, view)
+	}
+	for _, line := range strings.Split(view, "\n") {
+		if got := lipgloss.Width(line); got > m.Width {
+			t.Fatalf("line width = %d, want <= %d for %q\nfull view:\n%s", got, m.Width, line, view)
+		}
+	}
+	for _, want := range []string{"Project with newlines", "first prompt second prompt third prompt", "Source: /tmp/source with newlines.jsonl"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("View() missing normalized text %q:\n%s", want, view)
+		}
+	}
+}
+
 func TestEmptySessionsViewAndActions(t *testing.T) {
 	m := New(nil)
 

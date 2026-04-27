@@ -64,7 +64,7 @@ func renderRow(card session.SessionCard, selected bool, width int) string {
 		titleCaseHarness(card.Harness),
 		formatTime(card.SortTime()),
 		emptyDash(card.ProjectPath),
-		card.DisplayTitle(),
+		oneLine(card.DisplayTitle()),
 		promptSuffix(card.FirstPrompt),
 	)
 	line = truncate(line, width)
@@ -153,18 +153,23 @@ func formatTime(t time.Time) string {
 }
 
 func emptyDash(s string) string {
-	if strings.TrimSpace(s) == "" {
+	s = oneLine(s)
+	if s == "" {
 		return "-"
 	}
-	return strings.TrimSpace(s)
+	return s
 }
 
 func promptSuffix(prompt string) string {
-	prompt = strings.TrimSpace(prompt)
+	prompt = oneLine(prompt)
 	if prompt == "" {
 		return ""
 	}
 	return "  " + prompt
+}
+
+func oneLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 func truncate(s string, width int) string {
