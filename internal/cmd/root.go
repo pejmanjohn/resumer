@@ -145,7 +145,7 @@ func DefaultApp() App {
 
 func (app App) Run(args []string, stdout io.Writer, stderr io.Writer) error {
 	if isHelp(args) {
-		return writeHelp(stdout)
+		return writeHelp(args, stdout)
 	}
 
 	opts, err := ParseOptions(args)
@@ -319,20 +319,42 @@ func isHelp(args []string) bool {
 	return false
 }
 
-func writeHelp(w io.Writer) error {
+type helpExit int
+
+func writeHelp(args []string, w io.Writer) (err error) {
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			return
+		}
+		if code, ok := recovered.(helpExit); ok && code == 0 {
+			err = nil
+			return
+		}
+		panic(recovered)
+	}()
+
 	root := Root{}
-	parser, err := kong.New(&root, kong.Name("resumer"), kong.Writers(w, io.Discard), kong.Exit(func(int) {}))
+	parser, err := kong.New(&root, kong.Name("resumer"), kong.Writers(w, io.Discard), kong.Exit(func(code int) {
+		panic(helpExit(code))
+	}))
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(w, "MVP commands:")
-	fmt.Fprintln(w, "  resumer              Resume from Claude Code or Codex sessions.")
-	fmt.Fprintln(w, "  resumer claude       Show Claude Code sessions only.")
-	fmt.Fprintln(w, "  resumer codex        Show Codex sessions only.")
-	fmt.Fprintln(w, "  resumer list --json  Emit stable JSON output for scripts.")
-	fmt.Fprintln(w)
-	_, _ = parser.Parse([]string{"--help"})
-	return nil
+	if isTopLevelHelp(args) {
+		fmt.Fprintln(w, "MVP commands:")
+		fmt.Fprintln(w, "  resumer              Resume from Claude Code or Codex sessions.")
+		fmt.Fprintln(w, "  resumer claude       Show Claude Code sessions only.")
+		fmt.Fprintln(w, "  resumer codex        Show Codex sessions only.")
+		fmt.Fprintln(w, "  resumer list --json  Emit stable JSON output for scripts.")
+		fmt.Fprintln(w)
+	}
+	_, err = parser.Parse(args)
+	return err
+}
+
+func isTopLevelHelp(args []string) bool {
+	return len(args) == 1 && (args[0] == "--help" || args[0] == "-h")
 }
 
 type processExecutor struct {

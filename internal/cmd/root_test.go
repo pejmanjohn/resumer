@@ -336,6 +336,43 @@ func TestMainHelpReturnsOKAndWritesMVPHelp(t *testing.T) {
 	}
 }
 
+func TestMainListHelpReturnsOKAndWritesListHelp(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	got := Main([]string{"list", "--help"}, &stdout, &stderr)
+
+	if got != ExitOK {
+		t.Fatalf("Main(list --help) = %d, want %d", got, ExitOK)
+	}
+	if stderr.String() != "" {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	help := stdout.String()
+	for _, want := range []string{"Usage: resumer list", "--json"} {
+		if !strings.Contains(help, want) {
+			t.Fatalf("list help missing %q:\n%s", want, help)
+		}
+	}
+}
+
+func TestMainClaudeHelpReturnsOKAndWritesClaudeHelp(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	got := Main([]string{"claude", "--help"}, &stdout, &stderr)
+
+	if got != ExitOK {
+		t.Fatalf("Main(claude --help) = %d, want %d", got, ExitOK)
+	}
+	if stderr.String() != "" {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Usage: resumer claude") {
+		t.Fatalf("claude help missing usage:\n%s", stdout.String())
+	}
+}
+
 func testApp(t *testing.T) App {
 	t.Helper()
 	return App{
