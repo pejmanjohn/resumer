@@ -1,0 +1,2 @@
+{"timestamp":"2026-04-26T10:00:00Z","type":"session_meta","payload":{"id":"codex-session-1","cwd":"/repo/calc","model_provider":"openai"}}
+{"timestamp":"2026-04-26T10:01:00Z","type":"event_msg","payload":{"type":"message","message":"sanitized"}}
