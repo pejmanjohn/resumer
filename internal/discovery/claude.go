@@ -190,6 +190,18 @@ func (message claudeJSONLMessage) contentString() string {
 	if err := json.Unmarshal(message.Content, &content); err == nil {
 		return content
 	}
+
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(message.Content, &blocks); err == nil {
+		for _, block := range blocks {
+			if block.Type == "text" && strings.TrimSpace(block.Text) != "" {
+				return block.Text
+			}
+		}
+	}
 	return ""
 }
 

@@ -96,6 +96,24 @@ func TestParseClaudeJSONLExtractsSessionMetadata(t *testing.T) {
 	assertTime(t, card.UpdatedAt, "2026-04-26T10:02:00Z")
 }
 
+func TestParseClaudeJSONLExtractsFirstPromptFromContentBlocks(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "content-blocks.jsonl")
+	data := []byte(`{"type":"summary","sessionId":"claude-block-session","timestamp":"2026-04-26T10:00:00Z"}
+{"type":"user","sessionId":"claude-block-session","timestamp":"2026-04-26T10:01:00Z","cwd":"/repo/project-a","message":{"role":"user","content":[{"type":"text","text":"Plan from content block"}]}}
+`)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	card, ok, diagnostic := parseClaudeJSONL(path)
+	if !ok {
+		t.Fatalf("ok = false, diagnostic = %#v", diagnostic)
+	}
+	if card.FirstPrompt != "Plan from content block" {
+		t.Fatalf("FirstPrompt = %q, want Plan from content block", card.FirstPrompt)
+	}
+}
+
 func TestDiscoverClaudeMalformedIndexRecordsDiagnostic(t *testing.T) {
 	root := t.TempDir()
 	project := filepath.Join(root, "bad-project")
@@ -115,6 +133,25 @@ func TestDiscoverClaudeMalformedIndexRecordsDiagnostic(t *testing.T) {
 	}
 	if diagnostics[0].Source == "" || diagnostics[0].Message == "" {
 		t.Fatalf("diagnostic = %#v, want source and message", diagnostics[0])
+	}
+}
+
+func TestDiscoverClaudeUnreadableIndexRecordsDiagnostic(t *testing.T) {
+	root := t.TempDir()
+	indexPath := filepath.Join(root, "bad-project", "sessions-index.json")
+	if err := os.MkdirAll(indexPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cards, diagnostics := DiscoverClaude(ClaudeOptions{ProjectsPath: root})
+	if len(cards) != 0 {
+		t.Fatalf("cards = %#v, want none", cards)
+	}
+	if len(diagnostics) != 1 {
+		t.Fatalf("diagnostics = %#v, want one", diagnostics)
+	}
+	if diagnostics[0].Source != indexPath || diagnostics[0].Message == "" {
+		t.Fatalf("diagnostic = %#v, want source %q and message", diagnostics[0], indexPath)
 	}
 }
 
