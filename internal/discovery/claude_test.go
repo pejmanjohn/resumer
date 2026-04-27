@@ -114,6 +114,33 @@ func TestParseClaudeJSONLExtractsFirstPromptFromContentBlocks(t *testing.T) {
 	}
 }
 
+func TestParseClaudeJSONLSkipsMalformedLinesAndRecoversMetadata(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "malformed-line.jsonl")
+	data := []byte(`{"type":"summary","sessionId":"recovered-session","timestamp":"2026-04-26T10:00:00Z"}
+{"type":"user","sessionId":
+{"type":"user","sessionId":"recovered-session","timestamp":"2026-04-26T10:03:00Z","cwd":"/repo/recovered","message":{"role":"user","content":"Recover from later line"}}
+`)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	card, ok, diagnostic := parseClaudeJSONL(path)
+	if !ok {
+		t.Fatalf("ok = false, diagnostic = %#v", diagnostic)
+	}
+	if card.ID != "recovered-session" {
+		t.Fatalf("ID = %q, want recovered-session", card.ID)
+	}
+	if card.FirstPrompt != "Recover from later line" {
+		t.Fatalf("FirstPrompt = %q, want Recover from later line", card.FirstPrompt)
+	}
+	if card.ProjectPath != "/repo/recovered" {
+		t.Fatalf("ProjectPath = %q, want /repo/recovered", card.ProjectPath)
+	}
+	assertTime(t, card.CreatedAt, "2026-04-26T10:00:00Z")
+	assertTime(t, card.UpdatedAt, "2026-04-26T10:03:00Z")
+}
+
 func TestDiscoverClaudeMalformedIndexRecordsDiagnostic(t *testing.T) {
 	root := t.TempDir()
 	project := filepath.Join(root, "bad-project")

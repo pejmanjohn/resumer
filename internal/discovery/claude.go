@@ -3,7 +3,6 @@ package discovery
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -197,7 +196,7 @@ func parseClaudeJSONL(path string) (session.SessionCard, bool, Diagnostic) {
 		SourcePath: path,
 	}
 
-	for lineNumber := 1; scanner.Scan(); lineNumber++ {
+	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
@@ -205,10 +204,7 @@ func parseClaudeJSONL(path string) (session.SessionCard, bool, Diagnostic) {
 
 		var event claudeJSONLEvent
 		if err := json.Unmarshal([]byte(line), &event); err != nil {
-			return session.SessionCard{}, false, Diagnostic{
-				Source:  path,
-				Message: fmt.Sprintf("line %d: %v", lineNumber, err),
-			}
+			continue
 		}
 
 		if card.ID == "" {
