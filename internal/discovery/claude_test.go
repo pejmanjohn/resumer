@@ -155,6 +155,93 @@ func TestDiscoverClaudeUnreadableIndexRecordsDiagnostic(t *testing.T) {
 	}
 }
 
+func TestDiscoverClaudeFallsBackToJSONLWhenIndexMissing(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "project-a")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	transcriptPath := filepath.Join(project, "fallback-session.jsonl")
+	writeClaudeJSONL(t, transcriptPath, `{"type":"summary","sessionId":"fallback-session","timestamp":"2026-04-26T10:00:00Z"}
+{"type":"user","sessionId":"fallback-session","timestamp":"2026-04-26T10:01:00Z","cwd":"/repo/fallback","message":{"role":"user","content":"Plan from fallback"}}
+`)
+
+	cards, diagnostics := DiscoverClaude(ClaudeOptions{ProjectsPath: root})
+	if len(diagnostics) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diagnostics)
+	}
+	if len(cards) != 1 {
+		t.Fatalf("len(cards) = %d, want 1", len(cards))
+	}
+	if cards[0].ID != "fallback-session" {
+		t.Fatalf("ID = %q, want fallback-session", cards[0].ID)
+	}
+	if cards[0].FirstPrompt != "Plan from fallback" {
+		t.Fatalf("FirstPrompt = %q, want Plan from fallback", cards[0].FirstPrompt)
+	}
+	if cards[0].ProjectPath != "/repo/fallback" {
+		t.Fatalf("ProjectPath = %q, want /repo/fallback", cards[0].ProjectPath)
+	}
+	if cards[0].SourcePath != transcriptPath {
+		t.Fatalf("SourcePath = %q, want %q", cards[0].SourcePath, transcriptPath)
+	}
+}
+
+func TestDiscoverClaudeFallsBackToJSONLWhenIndexMalformed(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "project-a")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "sessions-index.json"), []byte(`{"entries": [`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeClaudeJSONL(t, filepath.Join(project, "fallback-session.jsonl"), `{"type":"summary","sessionId":"fallback-session","timestamp":"2026-04-26T10:00:00Z"}
+{"type":"user","sessionId":"fallback-session","timestamp":"2026-04-26T10:01:00Z","cwd":"/repo/fallback","message":{"role":"user","content":"Plan despite malformed index"}}
+`)
+
+	cards, diagnostics := DiscoverClaude(ClaudeOptions{ProjectsPath: root})
+	if len(diagnostics) != 1 {
+		t.Fatalf("diagnostics = %#v, want one malformed index diagnostic", diagnostics)
+	}
+	if len(cards) != 1 {
+		t.Fatalf("len(cards) = %d, want 1", len(cards))
+	}
+	if cards[0].ID != "fallback-session" {
+		t.Fatalf("ID = %q, want fallback-session", cards[0].ID)
+	}
+}
+
+func TestDiscoverClaudeFallbackRespectsSidechainFiltering(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "project-a")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeClaudeJSONL(t, filepath.Join(project, "sidechain-session.jsonl"), `{"type":"summary","sessionId":"sidechain-session","timestamp":"2026-04-26T10:00:00Z","isSidechain":true}
+{"type":"user","sessionId":"sidechain-session","timestamp":"2026-04-26T10:01:00Z","cwd":"/repo/fallback","isSidechain":true,"message":{"role":"user","content":"Hidden fallback helper"}}
+`)
+
+	cards, diagnostics := DiscoverClaude(ClaudeOptions{ProjectsPath: root})
+	if len(diagnostics) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diagnostics)
+	}
+	if len(cards) != 0 {
+		t.Fatalf("cards = %#v, want sidechain fallback excluded by default", cards)
+	}
+
+	cards, diagnostics = DiscoverClaude(ClaudeOptions{ProjectsPath: root, IncludeAll: true})
+	if len(diagnostics) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diagnostics)
+	}
+	if len(cards) != 1 {
+		t.Fatalf("len(cards) = %d, want 1", len(cards))
+	}
+	if !cards[0].Sidechain {
+		t.Fatalf("Sidechain = false, want true")
+	}
+}
+
 func TestDiscoverClaudeDeduplicatesSessionIDs(t *testing.T) {
 	root := t.TempDir()
 	first := filepath.Join(root, "first")
@@ -197,6 +284,72 @@ func TestDiscoverClaudeDeduplicatesSessionIDs(t *testing.T) {
 	}
 }
 
+func TestDiscoverClaudeNormalizesIndexSessionIDsBeforeSkippingAndDeduplicating(t *testing.T) {
+	root := t.TempDir()
+	first := filepath.Join(root, "first")
+	second := filepath.Join(root, "second")
+	for _, dir := range []string{first, second} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	firstIndex := `{
+  "entries": [
+    {
+      "sessionId": "  normalized-session  ",
+      "summary": "Trimmed session",
+      "firstPrompt": "Help me",
+      "created": "2026-04-26T10:00:00Z",
+      "modified": "2026-04-26T10:30:00Z",
+      "projectPath": "/repo/project-a",
+      "fullPath": "/sanitized/normalized.jsonl",
+      "isSidechain": false
+    },
+    {
+      "sessionId": "   ",
+      "summary": "Whitespace only",
+      "firstPrompt": "Skip me",
+      "created": "2026-04-26T10:00:00Z",
+      "modified": "2026-04-26T10:30:00Z",
+      "projectPath": "/repo/project-a",
+      "fullPath": "/sanitized/blank.jsonl",
+      "isSidechain": false
+    }
+  ]
+}`
+	secondIndex := `{
+  "entries": [
+    {
+      "sessionId": "normalized-session",
+      "summary": "Duplicate after trim",
+      "firstPrompt": "Duplicate",
+      "created": "2026-04-26T11:00:00Z",
+      "modified": "2026-04-26T11:30:00Z",
+      "projectPath": "/repo/project-a",
+      "fullPath": "/sanitized/duplicate.jsonl",
+      "isSidechain": false
+    }
+  ]
+}`
+	if err := os.WriteFile(filepath.Join(first, "sessions-index.json"), []byte(firstIndex), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(second, "sessions-index.json"), []byte(secondIndex), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cards, diagnostics := DiscoverClaude(ClaudeOptions{ProjectsPath: root})
+	if len(diagnostics) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diagnostics)
+	}
+	if len(cards) != 1 {
+		t.Fatalf("len(cards) = %d, want 1", len(cards))
+	}
+	if cards[0].ID != "normalized-session" {
+		t.Fatalf("ID = %q, want normalized-session", cards[0].ID)
+	}
+}
+
 func assertTime(t *testing.T, got time.Time, want string) {
 	t.Helper()
 
@@ -206,5 +359,13 @@ func assertTime(t *testing.T, got time.Time, want string) {
 	}
 	if !got.Equal(wantTime) {
 		t.Fatalf("time = %s, want %s", got.Format(time.RFC3339), want)
+	}
+}
+
+func writeClaudeJSONL(t *testing.T, path string, content string) {
+	t.Helper()
+
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }

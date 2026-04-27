@@ -38,18 +38,50 @@ func DiscoverClaude(opts ClaudeOptions) ([]session.SessionCard, []Diagnostic) {
 		index, diagnostic, ok := readClaudeIndex(indexPath)
 		if !ok {
 			diagnostics = append(diagnostics, diagnostic)
-			continue
+		} else {
+			for _, entry := range index.Entries {
+				card := entry.card()
+				if card.ID == "" || seen[card.ID] {
+					continue
+				}
+				if card.Sidechain && !opts.IncludeAll {
+					continue
+				}
+
+				cards = append(cards, card)
+				seen[card.ID] = true
+			}
 		}
 
-		for _, entry := range index.Entries {
-			if entry.SessionID == "" || seen[entry.SessionID] {
-				continue
-			}
-			if entry.IsSidechain && !opts.IncludeAll {
-				continue
-			}
+		projectDir := filepath.Dir(indexPath)
+		fallbackCards, fallbackDiagnostics := discoverClaudeJSONLInProject(projectDir, opts, seen)
+		cards = append(cards, fallbackCards...)
+		diagnostics = append(diagnostics, fallbackDiagnostics...)
+		for _, card := range fallbackCards {
+			seen[card.ID] = true
+		}
+	}
 
-			card := entry.card()
+	transcriptPattern := filepath.Join(opts.ProjectsPath, "*", "*.jsonl")
+	transcriptPaths, err := filepath.Glob(transcriptPattern)
+	if err != nil {
+		diagnostics = append(diagnostics, Diagnostic{Source: transcriptPattern, Message: err.Error()})
+	} else {
+		for _, transcriptPath := range transcriptPaths {
+			if hasIndex(filepath.Dir(transcriptPath), indexPaths) {
+				continue
+			}
+			card, ok, diagnostic := parseClaudeJSONL(transcriptPath)
+			if !ok {
+				diagnostics = append(diagnostics, diagnostic)
+				continue
+			}
+			if card.ID == "" || seen[card.ID] {
+				continue
+			}
+			if card.Sidechain && !opts.IncludeAll {
+				continue
+			}
 			cards = append(cards, card)
 			seen[card.ID] = true
 		}
@@ -60,6 +92,44 @@ func DiscoverClaude(opts ClaudeOptions) ([]session.SessionCard, []Diagnostic) {
 	})
 
 	return cards, diagnostics
+}
+
+func discoverClaudeJSONLInProject(projectDir string, opts ClaudeOptions, seen map[string]bool) ([]session.SessionCard, []Diagnostic) {
+	pattern := filepath.Join(projectDir, "*.jsonl")
+	transcriptPaths, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, []Diagnostic{{Source: pattern, Message: err.Error()}}
+	}
+
+	cards := make([]session.SessionCard, 0)
+	diagnostics := make([]Diagnostic, 0)
+	for _, transcriptPath := range transcriptPaths {
+		card, ok, diagnostic := parseClaudeJSONL(transcriptPath)
+		if !ok {
+			diagnostics = append(diagnostics, diagnostic)
+			continue
+		}
+		if card.ID == "" || seen[card.ID] {
+			continue
+		}
+		if card.Sidechain && !opts.IncludeAll {
+			continue
+		}
+		cards = append(cards, card)
+		seen[card.ID] = true
+	}
+
+	return cards, diagnostics
+}
+
+func hasIndex(projectDir string, indexPaths []string) bool {
+	indexPath := filepath.Join(projectDir, "sessions-index.json")
+	for _, existing := range indexPaths {
+		if existing == indexPath {
+			return true
+		}
+	}
+	return false
 }
 
 type claudeIndex struct {
@@ -146,6 +216,9 @@ func parseClaudeJSONL(path string) (session.SessionCard, bool, Diagnostic) {
 		if card.ProjectPath == "" {
 			card.ProjectPath = strings.TrimSpace(event.CWD)
 		}
+		if event.Sidechain {
+			card.Sidechain = true
+		}
 
 		timestamp := parseClaudeTime(event.Timestamp)
 		if !timestamp.IsZero() {
@@ -177,6 +250,7 @@ type claudeJSONLEvent struct {
 	SessionID string             `json:"sessionId"`
 	Timestamp string             `json:"timestamp"`
 	CWD       string             `json:"cwd"`
+	Sidechain bool               `json:"isSidechain"`
 	Message   claudeJSONLMessage `json:"message"`
 }
 
