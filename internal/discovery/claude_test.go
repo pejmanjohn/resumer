@@ -242,6 +242,56 @@ func TestDiscoverClaudeFallbackRespectsSidechainFiltering(t *testing.T) {
 	}
 }
 
+func TestDiscoverClaudeDoesNotReintroduceIndexSidechainThroughFallback(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "project-a")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	index := `{
+  "entries": [
+    {
+      "sessionId": "indexed-sidechain-session",
+      "summary": "Indexed sidechain",
+      "firstPrompt": "Hidden indexed helper",
+      "created": "2026-04-26T10:00:00Z",
+      "modified": "2026-04-26T10:30:00Z",
+      "projectPath": "/repo/project-a",
+      "fullPath": "/sanitized/indexed-sidechain-session.jsonl",
+      "isSidechain": true
+    }
+  ]
+}`
+	if err := os.WriteFile(filepath.Join(project, "sessions-index.json"), []byte(index), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeClaudeJSONL(t, filepath.Join(project, "indexed-sidechain-session.jsonl"), `{"type":"summary","sessionId":"indexed-sidechain-session","timestamp":"2026-04-26T10:00:00Z"}
+{"type":"user","sessionId":"indexed-sidechain-session","timestamp":"2026-04-26T10:01:00Z","cwd":"/repo/project-a","message":{"role":"user","content":"Fallback lacks sidechain marker"}}
+`)
+
+	cards, diagnostics := DiscoverClaude(ClaudeOptions{ProjectsPath: root})
+	if len(diagnostics) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diagnostics)
+	}
+	if len(cards) != 0 {
+		t.Fatalf("cards = %#v, want indexed sidechain excluded despite fallback transcript", cards)
+	}
+
+	cards, diagnostics = DiscoverClaude(ClaudeOptions{ProjectsPath: root, IncludeAll: true})
+	if len(diagnostics) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diagnostics)
+	}
+	if len(cards) != 1 {
+		t.Fatalf("len(cards) = %d, want 1", len(cards))
+	}
+	if cards[0].ID != "indexed-sidechain-session" {
+		t.Fatalf("ID = %q, want indexed-sidechain-session", cards[0].ID)
+	}
+	if !cards[0].Sidechain {
+		t.Fatalf("Sidechain = false, want true")
+	}
+}
+
 func TestDiscoverClaudeDeduplicatesSessionIDs(t *testing.T) {
 	root := t.TempDir()
 	first := filepath.Join(root, "first")

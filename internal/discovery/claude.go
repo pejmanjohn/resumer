@@ -45,6 +45,7 @@ func DiscoverClaude(opts ClaudeOptions) ([]session.SessionCard, []Diagnostic) {
 					continue
 				}
 				if card.Sidechain && !opts.IncludeAll {
+					seen[card.ID] = true
 					continue
 				}
 
