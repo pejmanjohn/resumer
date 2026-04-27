@@ -25,6 +25,12 @@ func (e CanceledError) Error() string {
 	return "selection canceled"
 }
 
+type EmptyError struct{}
+
+func (e EmptyError) Error() string {
+	return "no sessions found"
+}
+
 type LaunchError struct {
 	Message string
 }
@@ -44,6 +50,10 @@ func ExitCode(err error) int {
 	var canceled CanceledError
 	if errors.As(err, &canceled) {
 		return ExitCanceled
+	}
+	var empty EmptyError
+	if errors.As(err, &empty) {
+		return ExitEmpty
 	}
 	var launch LaunchError
 	if errors.As(err, &launch) {
