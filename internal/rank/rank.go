@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 type Options struct {
@@ -22,6 +22,9 @@ func Apply(cards []session.SessionCard, opts Options) []session.SessionCard {
 			continue
 		}
 		if !opts.IncludeAll && (card.Sidechain || card.Internal) {
+			continue
+		}
+		if !opts.IncludeAll && isCodexIndexOnly(card) {
 			continue
 		}
 		ranked = append(ranked, card)
@@ -65,6 +68,10 @@ func matchesCWD(projectPath string, cwd string) bool {
 		return true
 	}
 	return strings.HasPrefix(cleanProject, cleanCWD+string(filepath.Separator))
+}
+
+func isCodexIndexOnly(card session.SessionCard) bool {
+	return card.Harness == session.HarnessCodex && card.SourcePath == "" && card.ProjectPath == ""
 }
 
 func stableKey(card session.SessionCard) string {

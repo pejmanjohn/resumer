@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 func TestDiscoverClaudeFromIndexReturnsNonSidechainByDefault(t *testing.T) {

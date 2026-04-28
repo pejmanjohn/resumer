@@ -1,4 +1,4 @@
-module resumer
+module github.com/pejmanjohn/resumer
 
 go 1.26
 

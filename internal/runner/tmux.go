@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 func TmuxSessionName(card session.SessionCard) string {

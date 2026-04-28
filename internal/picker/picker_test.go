@@ -9,7 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 func TestInitialViewShowsSelectedSessionAndFooter(t *testing.T) {
@@ -21,7 +21,6 @@ func TestInitialViewShowsSelectedSessionAndFooter(t *testing.T) {
 		"Resume a session",
 		"Codex",
 		"Project one",
-		"Help me ship the picker",
 		"enter resume",
 		"d details",
 		"c copy command",
@@ -54,7 +53,7 @@ func TestDetailsToggleAndEnterSelectionRecordResumeAction(t *testing.T) {
 	if !m.ShowDetails {
 		t.Fatal("ShowDetails = false, want true")
 	}
-	if view := m.View(); !strings.Contains(view, "ID: codex-1") || !strings.Contains(view, "Source: /tmp/codex.jsonl") || !strings.Contains(view, "Resume command:") {
+	if view := m.View(); !strings.Contains(view, "ID: codex-1") || !strings.Contains(view, "Project: /repo/project-one") || !strings.Contains(view, "Source: /tmp/codex.jsonl") || !strings.Contains(view, "Resume command:") {
 		t.Fatalf("details view missing expected fields:\n%s", view)
 	}
 
@@ -160,6 +159,169 @@ func TestViewTruncatesWideUnicodeToTerminalWidth(t *testing.T) {
 	}
 }
 
+func TestViewUsesRelativeTimesAndCompactProjectLabels(t *testing.T) {
+	m := New([]session.SessionCard{
+		{
+			Harness:     session.HarnessCodex,
+			ID:          "recent-1",
+			Title:       "Recent session",
+			ProjectPath: "/Users/pejman/code/resumer",
+			UpdatedAt:   time.Now().Add(-2*time.Hour - 5*time.Minute),
+		},
+		{
+			Harness:     session.HarnessCodex,
+			ID:          "worktree-1",
+			Title:       "Worktree session",
+			ProjectPath: "/Users/pejman/.codex/worktrees/15eb/oss-pr-manager",
+			UpdatedAt:   time.Now().Add(-3*time.Hour - 5*time.Minute),
+		},
+	})
+	m.Width = 180
+
+	view := m.View()
+
+	for _, want := range []string{"Title", "Project", "Age", "2h", "resumer", "oss-pr-manager"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("View() missing %q:\n%s", want, view)
+		}
+	}
+	for _, notWant := range []string{"2h ago", "3h ago", "Codex"} {
+		if strings.Contains(view, notWant) {
+			t.Fatalf("View() contains noisy metadata %q:\n%s", notWant, view)
+		}
+	}
+	for _, notWant := range []string{"/Users/pejman/code/resumer", "/Users/pejman/.codex/worktrees/15eb/oss-pr-manager"} {
+		if strings.Contains(view, notWant) {
+			t.Fatalf("View() contains full project path %q:\n%s", notWant, view)
+		}
+	}
+}
+
+func TestViewOrdersRowsTitleFirstAndShowsToolOnlyForMixedHarnesses(t *testing.T) {
+	m := New([]session.SessionCard{
+		{
+			Harness:     session.HarnessCodex,
+			ID:          "codex-1",
+			Title:       "Agent session",
+			ProjectPath: "/repo/resumer",
+			UpdatedAt:   time.Now().Add(-1 * time.Hour),
+		},
+		{
+			Harness:     session.HarnessClaude,
+			ID:          "claude-1",
+			Title:       "Claude session",
+			ProjectPath: "/repo/resumer",
+			UpdatedAt:   time.Now().Add(-2 * time.Hour),
+		},
+	})
+	m.Width = 160
+
+	view := m.View()
+
+	header := firstLineContaining(t, view, "Title")
+	assertOrder(t, header, "Title", "Project", "Age", "Tool")
+	row := firstLineContaining(t, view, "Agent session")
+	assertOrder(t, row, "Agent session", "resumer", "1h", "Codex")
+	if strings.Contains(row, "> Codex") {
+		t.Fatalf("row starts with harness instead of title-first layout:\n%s", row)
+	}
+}
+
+func TestViewKeepsMetadataColumnsNearTitleOnWideTerminals(t *testing.T) {
+	m := New([]session.SessionCard{
+		{
+			Harness:     session.HarnessCodex,
+			ID:          "long-1",
+			Title:       "can you help me figure out if i should upgrade to a MBP m5 max 128gb or remain on my current laptop",
+			ProjectPath: "/repo/agent-workspace",
+			UpdatedAt:   time.Now().Add(-5 * time.Minute),
+		},
+		{
+			Harness:     session.HarnessCodex,
+			ID:          "short-1",
+			Title:       "Review task 8 implementation",
+			ProjectPath: "/repo/resumer",
+			UpdatedAt:   time.Now().Add(-30 * time.Minute),
+		},
+	})
+	m.Width = 240
+
+	view := m.View()
+	header := firstLineContaining(t, view, "Title")
+	projectIndex := strings.Index(header, "Project")
+	if projectIndex == -1 {
+		t.Fatalf("header missing Project:\n%s", view)
+	}
+	if projectIndex > 80 {
+		t.Fatalf("Project column starts at %d, want <= 80 for a readable wide layout:\n%s", projectIndex, view)
+	}
+	if strings.Contains(view, "current laptop") {
+		t.Fatalf("long title was not truncated to keep metadata nearby:\n%s", view)
+	}
+}
+
+func TestViewUsesCompactMobileLayoutAtNarrowWidths(t *testing.T) {
+	m := New([]session.SessionCard{
+		{
+			Harness:     session.HarnessCodex,
+			ID:          "codex-1",
+			Title:       "Prepare launch",
+			ProjectPath: "/repo/resumer",
+			UpdatedAt:   time.Now().Add(-2 * time.Hour),
+		},
+		{
+			Harness:     session.HarnessClaude,
+			ID:          "claude-1",
+			Title:       "Review auth",
+			ProjectPath: "/repo/agent-workspace",
+			UpdatedAt:   time.Now().Add(-3 * time.Hour),
+		},
+	})
+	m.Width = 44
+	m.Height = 10
+
+	view := m.View()
+
+	for _, notWant := range []string{"Title", "Project", "Age", "Tool", "copy command"} {
+		if strings.Contains(view, notWant) {
+			t.Fatalf("compact view contains desktop text %q:\n%s", notWant, view)
+		}
+	}
+	for _, want := range []string{"Prepare launch", "resumer", "2h", "Codex", "c copy"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("compact view missing %q:\n%s", want, view)
+		}
+	}
+	for _, line := range strings.Split(view, "\n") {
+		if got := lipgloss.Width(line); got > m.Width {
+			t.Fatalf("line width = %d, want <= %d for %q\nfull view:\n%s", got, m.Width, line, view)
+		}
+	}
+}
+
+func TestCompactViewBoundsRowsAndKeepsSelectedSessionVisible(t *testing.T) {
+	m := New(manyTestSessions(20))
+	m.Width = 44
+	m.Height = 8
+	m.Cursor = 10
+
+	view := m.View()
+
+	if lineCount(view) > m.Height {
+		t.Fatalf("line count = %d, want <= %d:\n%s", lineCount(view), m.Height, view)
+	}
+	for _, want := range []string{"Project 10", "project-10", "enter resume"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("compact view missing %q:\n%s", want, view)
+		}
+	}
+	for _, notWant := range []string{"Project 00", "Project 19"} {
+		if strings.Contains(view, notWant) {
+			t.Fatalf("compact view contains out-of-window session %q:\n%s", notWant, view)
+		}
+	}
+}
+
 func TestViewNormalizesMultilineFieldsBeforeBounding(t *testing.T) {
 	m := New([]session.SessionCard{
 		{
@@ -173,7 +335,7 @@ func TestViewNormalizesMultilineFieldsBeforeBounding(t *testing.T) {
 		},
 	})
 	m.Width = 120
-	m.Height = 8
+	m.Height = 10
 	m.ShowDetails = true
 
 	view := m.View()
@@ -222,6 +384,32 @@ func lineCount(s string) int {
 		return 0
 	}
 	return len(strings.Split(s, "\n"))
+}
+
+func firstLineContaining(t *testing.T, text string, needle string) string {
+	t.Helper()
+	for _, line := range strings.Split(text, "\n") {
+		if strings.Contains(line, needle) {
+			return line
+		}
+	}
+	t.Fatalf("no line containing %q in:\n%s", needle, text)
+	return ""
+}
+
+func assertOrder(t *testing.T, text string, parts ...string) {
+	t.Helper()
+	last := -1
+	for _, part := range parts {
+		index := strings.Index(text, part)
+		if index == -1 {
+			t.Fatalf("%q missing %q", text, part)
+		}
+		if index <= last {
+			t.Fatalf("%q does not place %q after previous part", text, part)
+		}
+		last = index
+	}
 }
 
 func testSessions() []session.SessionCard {

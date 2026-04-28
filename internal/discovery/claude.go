@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 type Diagnostic struct {

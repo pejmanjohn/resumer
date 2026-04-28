@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 func Run(card session.SessionCard, opts Options, exec Executor) error {

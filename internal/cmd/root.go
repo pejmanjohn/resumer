@@ -9,15 +9,15 @@ import (
 	"github.com/alecthomas/kong"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"resumer/internal/clipboard"
-	"resumer/internal/config"
-	"resumer/internal/discovery"
-	"resumer/internal/errfmt"
-	"resumer/internal/outfmt"
-	"resumer/internal/picker"
-	"resumer/internal/rank"
-	"resumer/internal/runner"
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/clipboard"
+	"github.com/pejmanjohn/resumer/internal/config"
+	"github.com/pejmanjohn/resumer/internal/discovery"
+	"github.com/pejmanjohn/resumer/internal/errfmt"
+	"github.com/pejmanjohn/resumer/internal/outfmt"
+	"github.com/pejmanjohn/resumer/internal/picker"
+	"github.com/pejmanjohn/resumer/internal/rank"
+	"github.com/pejmanjohn/resumer/internal/runner"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 type Mode string

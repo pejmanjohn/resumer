@@ -3,7 +3,7 @@ package picker
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 type Action int

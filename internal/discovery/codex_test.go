@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 func TestDiscoverCodexFromIndexDeduplicatesAndEnrichesTranscript(t *testing.T) {
@@ -134,6 +134,87 @@ func TestDiscoverCodexKeepsIndexSessionWithoutTranscript(t *testing.T) {
 	}
 	if card.ProjectPath != "" || card.Model != "" || card.SourcePath != "" || !card.CreatedAt.IsZero() {
 		t.Fatalf("card = %#v, want index-only fields without transcript enrichment", card)
+	}
+}
+
+func TestDiscoverCodexMarksSubagentSessionsInternal(t *testing.T) {
+	root := t.TempDir()
+	indexPath := filepath.Join(root, "session_index.jsonl")
+	sessionsPath := filepath.Join(root, "sessions")
+	transcriptDir := filepath.Join(sessionsPath, "2026", "04", "27")
+	if err := os.MkdirAll(transcriptDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	index := []byte(`{"id":"main-session","thread_name":"Main session","updated_at":"2026-04-27T10:00:00Z"}
+{"id":"subagent-session","thread_name":"Review implementation","updated_at":"2026-04-27T11:00:00Z"}
+`)
+	if err := os.WriteFile(indexPath, index, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	subagentTranscript := []byte(`{"timestamp":"2026-04-27T11:00:00Z","type":"session_meta","payload":{"id":"subagent-session","cwd":"/repo/app","model_provider":"openai","source":{"subagent":{"thread_spawn":{"parent_thread_id":"main-session","depth":1,"agent_nickname":"Ada","agent_role":"default"}}}}}
+`)
+	transcriptPath := filepath.Join(transcriptDir, "rollout-2026-04-27T11-00-00-subagent-session.jsonl")
+	if err := os.WriteFile(transcriptPath, subagentTranscript, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cards, diagnostics := DiscoverCodex(CodexOptions{IndexPath: indexPath, SessionsPath: sessionsPath})
+	if len(diagnostics) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diagnostics)
+	}
+
+	seen := map[string]session.SessionCard{}
+	for _, card := range cards {
+		seen[card.ID] = card
+	}
+	if seen["main-session"].Internal {
+		t.Fatalf("main card marked internal: %#v", seen["main-session"])
+	}
+	if !seen["subagent-session"].Internal {
+		t.Fatalf("subagent card Internal = false, want true: %#v", seen["subagent-session"])
+	}
+}
+
+func TestDiscoverCodexEnrichesMainSessionWithStringSource(t *testing.T) {
+	root := t.TempDir()
+	indexPath := filepath.Join(root, "session_index.jsonl")
+	sessionsPath := filepath.Join(root, "sessions")
+	transcriptDir := filepath.Join(sessionsPath, "2026", "04", "24")
+	if err := os.MkdirAll(transcriptDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	index := []byte(`{"id":"main-session","thread_name":"Add pill favicon","updated_at":"2026-04-24T06:27:53Z"}
+`)
+	if err := os.WriteFile(indexPath, index, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	transcript := []byte(`{"timestamp":"2026-04-24T06:27:53Z","type":"session_meta","payload":{"id":"main-session","cwd":"/Users/pejman/.codex/worktrees/988f/ai-status","model_provider":"openai","source":"vscode"}}
+`)
+	transcriptPath := filepath.Join(transcriptDir, "rollout-2026-04-24T06-27-53-main-session.jsonl")
+	if err := os.WriteFile(transcriptPath, transcript, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cards, diagnostics := DiscoverCodex(CodexOptions{IndexPath: indexPath, SessionsPath: sessionsPath})
+	if len(diagnostics) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diagnostics)
+	}
+	if len(cards) != 1 {
+		t.Fatalf("len(cards) = %d, want 1", len(cards))
+	}
+	card := cards[0]
+	if card.ProjectPath != "/Users/pejman/.codex/worktrees/988f/ai-status" {
+		t.Fatalf("ProjectPath = %q, want transcript cwd", card.ProjectPath)
+	}
+	if card.Model != "openai" {
+		t.Fatalf("Model = %q, want openai", card.Model)
+	}
+	if card.Internal {
+		t.Fatalf("Internal = true, want false for main session")
 	}
 }
 

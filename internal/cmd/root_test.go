@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"resumer/internal/discovery"
-	"resumer/internal/picker"
-	"resumer/internal/runner"
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/discovery"
+	"github.com/pejmanjohn/resumer/internal/picker"
+	"github.com/pejmanjohn/resumer/internal/runner"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 func TestParseNoArgsDefaultsToInteractiveAllHarnesses(t *testing.T) {

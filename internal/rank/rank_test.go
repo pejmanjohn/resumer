@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 func TestApplySortsByUpdatedAtDescendingAndLimits(t *testing.T) {
@@ -38,6 +38,23 @@ func TestApplyFiltersHarnessAndSidechainUnlessIncludeAll(t *testing.T) {
 	included := Apply(cards, Options{Harness: session.HarnessClaude, IncludeAll: true})
 	if gotIDs(included) != "internal,sidechain,claude" {
 		t.Fatalf("IncludeAll IDs = %s, want internal,sidechain,claude", gotIDs(included))
+	}
+}
+
+func TestApplyFiltersCodexIndexOnlySessionsUnlessIncludeAll(t *testing.T) {
+	complete := card("complete", session.HarnessCodex, time.Date(2026, 4, 2, 10, 0, 0, 0, time.UTC))
+	complete.SourcePath = "/home/ada/.codex/sessions/complete.jsonl"
+	indexOnly := card("index-only", session.HarnessCodex, time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC))
+	indexOnly.SourcePath = ""
+
+	filtered := Apply([]session.SessionCard{complete, indexOnly}, Options{})
+	if gotIDs(filtered) != "complete" {
+		t.Fatalf("filtered IDs = %s, want complete", gotIDs(filtered))
+	}
+
+	included := Apply([]session.SessionCard{complete, indexOnly}, Options{IncludeAll: true})
+	if gotIDs(included) != "index-only,complete" {
+		t.Fatalf("IncludeAll IDs = %s, want index-only,complete", gotIDs(included))
 	}
 }
 
@@ -86,12 +103,16 @@ func TestApplyDoesNotMutateInputOrdering(t *testing.T) {
 }
 
 func card(id string, harness session.Harness, updated time.Time) session.SessionCard {
-	return session.SessionCard{
+	card := session.SessionCard{
 		Harness:   harness,
 		ID:        id,
 		Title:     id,
 		UpdatedAt: updated,
 	}
+	if harness == session.HarnessCodex {
+		card.SourcePath = "/home/ada/.codex/sessions/" + id + ".jsonl"
+	}
+	return card
 }
 
 func gotIDs(cards []session.SessionCard) string {

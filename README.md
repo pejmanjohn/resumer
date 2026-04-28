@@ -1,94 +1,126 @@
 # Resumer
 
-Resumer is a small Go CLI for finding recent Claude Code and Codex sessions and resuming one without digging through hidden state directories or copying opaque IDs by hand.
+![Resumer interactive session picker](docs/assets/resumer-picker.png)
 
-## MVP Commands
+Resumer is a tiny terminal picker for getting back into recent Codex and Claude Code sessions without spelunking through hidden state directories, copying opaque IDs, or guessing which project a conversation belonged to.
 
-```bash
-resumer                         # interactive picker across Claude Code and Codex
-resumer claude                  # interactive picker for Claude Code sessions
-resumer codex                   # interactive picker for Codex sessions
-resumer list --json             # machine-readable session list
-resumer --print                 # pick a session, then print the resume command
-resumer --tmux                  # pick a session, then run it through tmux
+It gives your agent history the thing it has been missing: a fast, readable resume screen.
+
+## Why Resumer?
+
+Agent work tends to sprawl across projects, worktrees, laptops, tmux panes, and late-night "what was I doing?" sessions. Codex and Claude Code both keep enough local state to resume, but the raw files are not meant to be browsed by humans.
+
+Resumer normalizes that state into one practical list:
+
+- session titles first, because that is how you remember the work
+- compact project names instead of repeated full paths
+- relative ages like `6m`, `1h`, and `2d`
+- Codex and Claude Code in one picker
+- details on demand when you need the exact ID, source file, or resume command
+- mobile-friendly rendering for narrow terminals, including Moshi on iPhone
+
+## Install
+
+```sh
+go install github.com/pejmanjohn/resumer/cmd/resumer@latest
 ```
 
-Useful flags:
+Resumer requires Go 1.26 or newer.
 
-```bash
---limit N    Maximum sessions to show, default 50
---all        Include old, sidechain, and noisy sessions
---cwd        Bias sessions under the current working directory
---debug      Print discovery diagnostics to stderr
---print      Print the selected command instead of executing it
---tmux       Launch the selected command in a Resumer-named tmux session
+## Usage
+
+```sh
+resumer                         # pick from Codex and Claude Code sessions
+resumer codex                   # Codex sessions only
+resumer claude                  # Claude Code sessions only
+resumer --cwd                   # prefer sessions under the current directory
+resumer --tmux                  # resume inside a stable tmux session
+resumer --print                 # print the selected resume command
+resumer list --json             # scriptable JSON output
 ```
 
-In the picker, use `up`/`down` or `j`/`k` to move, Enter to resume, `d` for details, `c` to copy the resume command, and `q`, Escape, or Ctrl-C to cancel.
-
-## Output And Safety
-
-The default mode is interactive and human-focused. `resumer list --json` is the scriptable mode and writes only JSON to stdout:
-
-```json
-{
-  "sessions": []
-}
-```
-
-Diagnostics and human errors go to stderr so JSON stdout stays clean.
-
-Resumer is read-only with respect to Claude Code and Codex session storage. It discovers sessions from existing harness files, ranks normalized session cards in memory, and then either runs, prints, or copies the harness resume command. It does not mutate transcript files, create a session database, or rewrite harness state.
-
-Normal resume execution uses direct argv execution through `os/exec`, not a shell. The displayed and copied command is shell-formatted for humans.
-
-## Discovery Paths
-
-By default, Resumer looks in the standard harness locations:
+Inside the picker:
 
 ```text
-~/.claude/projects
+up/down or j/k   move
+enter            resume
+d                show details
+c                copy resume command
+q or esc         quit
+```
+
+## What It Finds
+
+By default, Resumer reads the local session stores used by Codex and Claude Code:
+
+```text
 ~/.codex/session_index.jsonl
 ~/.codex/sessions
+~/.claude/projects
 ```
 
-Environment overrides:
+It enriches index entries with transcript metadata when available, then hides internal/noisy rows by default. Use `--all` when you want to inspect everything, including sidechain, subagent, or index-only sessions.
 
-```bash
-RESUMER_CLAUDE_PROJECTS_PATH=/path/to/claude/projects
-RESUMER_CODEX_INDEX_PATH=/path/to/session_index.jsonl
-RESUMER_CODEX_SESSIONS_PATH=/path/to/codex/sessions
-```
+## Tmux And Mobile
 
-The config package also recognizes `RESUMER_DEFAULT_TMUX` and `RESUMER_TMUX_HOST_HINT` for the planned tmux defaults/remote-host workflow, but the MVP command path is explicit: use `--tmux` when you want tmux launch behavior.
+`resumer --tmux` launches the selected resume command in a stable, project-aware tmux session:
 
-## Tmux
-
-`resumer --tmux` runs the selected resume command through:
-
-```bash
+```sh
 tmux new-session -A -s <resumer-session-name> <resume-command>
 ```
 
-The session name is derived from the harness and project/title, so repeated launches attach/reuse the same Resumer-named tmux session instead of creating a new one. `--print` takes precedence over `--tmux` when both flags are present.
+That pairs well with remote mobile terminals. On narrow screens, Resumer switches to a compact two-line layout so titles stay readable and metadata stays close by instead of stretching across a desktop-width table.
 
-Resumer does not move an already-running non-tmux Claude or Codex process into tmux.
+## JSON
 
-## Deferred
+For scripts and other tools:
 
-The MVP intentionally does not include:
+```sh
+resumer list --json
+```
 
-- fuzzy search or `resumer search`
-- a `resumer config` command system or config file
-- plain/TSV output or `resumer command <session-id>`
-- support for Gemini, Cursor, OpenCode, OpenClaw, or other harnesses
-- Codex metadata sources beyond the current index and transcript JSONL enrichment
-- a `resumer tmux` dashboard, kill, or rename actions
-- Homebrew packaging or release installers
+Example shape:
+
+```json
+{
+  "sessions": [
+    {
+      "harness": "codex",
+      "id": "019dd26c-0f78-7dc1-91f8-f8c2a8f4c515",
+      "title": "Prepare production launch",
+      "project_path": "/Users/you/code/app",
+      "updated_at": "2026-04-28T04:49:55Z",
+      "command": "codex resume 019dd26c-0f78-7dc1-91f8-f8c2a8f4c515 --cd /Users/you/code/app"
+    }
+  ]
+}
+```
+
+Diagnostics and human-readable errors go to stderr, so JSON stdout stays clean.
+
+## Configuration
+
+Override discovery paths with environment variables:
+
+```sh
+RESUMER_CODEX_INDEX_PATH=/path/to/session_index.jsonl
+RESUMER_CODEX_SESSIONS_PATH=/path/to/codex/sessions
+RESUMER_CLAUDE_PROJECTS_PATH=/path/to/claude/projects
+```
+
+## Safety
+
+Resumer is read-only with respect to Codex and Claude Code session storage. It discovers local session files, ranks normalized session cards in memory, and then runs, prints, or copies the harness resume command.
+
+It does not mutate transcripts, rewrite harness state, or maintain its own session database.
 
 ## Development
 
-```bash
+```sh
 go test ./...
 go run ./cmd/resumer --help
 ```
+
+## License
+
+MIT

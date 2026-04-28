@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"resumer/internal/cmd"
+	"github.com/pejmanjohn/resumer/internal/cmd"
 )
 
 func main() {

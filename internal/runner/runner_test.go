@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 type recordingExecutor struct {

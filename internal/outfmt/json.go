@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 type jsonDocument struct {

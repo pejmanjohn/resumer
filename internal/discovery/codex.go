@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"resumer/internal/session"
+	"github.com/pejmanjohn/resumer/internal/session"
 )
 
 type CodexOptions struct {
@@ -113,6 +113,7 @@ func enrichCodexCards(cards map[string]session.SessionCard, sessionsPath string)
 				card.ProjectPath = meta.ProjectPath
 				card.Model = meta.Model
 				card.CreatedAt = meta.CreatedAt
+				card.Internal = meta.Internal
 				card.SourcePath = path
 				cards[id] = card
 			}
@@ -142,6 +143,7 @@ type codexSessionMeta struct {
 	ProjectPath string
 	Model       string
 	CreatedAt   time.Time
+	Internal    bool
 }
 
 func parseCodexSessionMeta(line []byte, id string) (codexSessionMeta, bool) {
@@ -149,9 +151,10 @@ func parseCodexSessionMeta(line []byte, id string) (codexSessionMeta, bool) {
 		Timestamp string `json:"timestamp"`
 		Type      string `json:"type"`
 		Payload   struct {
-			ID            string `json:"id"`
-			CWD           string `json:"cwd"`
-			ModelProvider string `json:"model_provider"`
+			ID            string          `json:"id"`
+			CWD           string          `json:"cwd"`
+			ModelProvider string          `json:"model_provider"`
+			Source        json.RawMessage `json:"source"`
 		} `json:"payload"`
 	}
 	if err := json.Unmarshal(line, &event); err != nil {
@@ -165,5 +168,18 @@ func parseCodexSessionMeta(line []byte, id string) (codexSessionMeta, bool) {
 		ProjectPath: strings.TrimSpace(event.Payload.CWD),
 		Model:       strings.TrimSpace(event.Payload.ModelProvider),
 		CreatedAt:   parseClaudeTime(event.Timestamp),
+		Internal:    codexSourceIsSubagent(event.Payload.Source),
 	}, true
+}
+
+func codexSourceIsSubagent(source json.RawMessage) bool {
+	var parsed struct {
+		Subagent *struct {
+			ThreadSpawn json.RawMessage `json:"thread_spawn"`
+		} `json:"subagent"`
+	}
+	if err := json.Unmarshal(source, &parsed); err != nil {
+		return false
+	}
+	return parsed.Subagent != nil
 }
