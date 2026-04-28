@@ -25,7 +25,24 @@ Resumer normalizes that state into one practical list:
 go install github.com/pejmanjohn/resumer/cmd/resumer@latest
 ```
 
-Resumer requires Go 1.26 or newer.
+Resumer requires Go 1.26 or newer. `go install` writes binaries to `GOBIN`, or to `$(go env GOPATH)/bin` when `GOBIN` is not set. Make sure that directory is on your `PATH`:
+
+```sh
+export PATH="$(go env GOPATH)/bin:$PATH"
+```
+
+For zsh, add it permanently:
+
+```sh
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc
+exec zsh
+```
+
+Verify the installed binary directly if your shell still cannot find it:
+
+```sh
+"$(go env GOPATH)/bin/resumer" --help
+```
 
 ## Usage
 
